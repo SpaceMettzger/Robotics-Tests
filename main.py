@@ -18,6 +18,7 @@ if __name__ == "__main__":
     for point in list(ying_yang.points.values()):
         print(point)
 
+    ying_yang.print_movement_commands()
 
     # PointPlotter(list(ying_yang.points.values())).plot_transformed_points(rot_matrix, ying_yang.semicircles)
     PointPlotter(list(ying_yang.points.values())).plot_yingyang(ying_yang)

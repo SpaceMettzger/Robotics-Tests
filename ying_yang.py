@@ -6,7 +6,8 @@ class YingYang:
         self.radius = radius
         self.points = {"P0": point_1}
         self.calculate_points()
-        self.semicircles = []
+        self.semicircles = self.get_semicircles()
+
 
     def calculate_points(self):
         p_0 = self.points["P0"]
@@ -46,3 +47,19 @@ class YingYang:
             [self.points["P13"], self.points["P14"], self.points["P11"]]
         ]
 
+    def print_movement_commands(self):
+        print("\nSemicircle without angled plane:")
+        for i in range(0, 7):
+            semicircle = self.semicircles[i]
+            point_1, point_2 = semicircle[1], semicircle[2]
+            print(f"ZR X {point_1.x} Y {point_1.y} Z {point_1.z} X {point_2.x} Y {point_2.y} Z {point_2.z} "
+                  f"A {point_2.a} B {point_2.b} C{point_2.c}")
+
+
+        print("\nSemicircle with angled plane:")
+        for i in range(0, 8):
+            semicircle = self.semicircles[i]
+            point_1, point_2 = semicircle[1], semicircle[2]
+            print(f"ZR X {point_1.x_transformed} Y {point_1.y_transformed} Z {point_1.z_transformed} "
+                  f"X {point_2.x_transformed} Y {point_2.y_transformed} Z {point_2.z_transformed} "
+                  f"A {point_2.a} B {point_2.b} C{point_2.c}")

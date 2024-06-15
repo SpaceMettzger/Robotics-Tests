@@ -26,9 +26,9 @@ class Point:
 
     def transform_coords(self, rotation_matrix: np.matrix):
         self.vector_transformed = np.dot(rotation_matrix, self.vector).A1[:3]
-        self.x_transformed = self.vector_transformed[0]
-        self.y_transformed = self.vector_transformed[1]
-        self.z_transformed = self.vector_transformed[2]
+        self.x_transformed = round(self.vector_transformed[0], 3)
+        self.y_transformed = round(self.vector_transformed[1], 3)
+        self.z_transformed = round(self.vector_transformed[2], 3)
 
     def __repr__(self):
         return f"{self.point_name}, {self.vector[:3]}"
