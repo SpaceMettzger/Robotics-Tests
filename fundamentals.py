@@ -38,65 +38,6 @@ class PointPlotter:
     def __init__(self, points: list):
         self.points = points
 
-    def plot_transformed_points(self, rot_matrix, semicircles):
-        original_x = []
-        original_y = []
-        original_z = []
-        transformed_x = []
-        transformed_y = []
-        transformed_z = []
-
-        for point in self.points:
-            transformed_vector = np.dot(rot_matrix, point.vector)
-            transformed_point = transformed_vector.A1[:3]
-
-            original_x.append(point.x)
-            original_y.append(point.y)
-            original_z.append(point.z)
-
-            transformed_x.append(transformed_point[0])
-            transformed_y.append(transformed_point[1])
-            transformed_z.append(transformed_point[2])
-
-        fig = plt.figure()
-        ax = fig.add_subplot(111, projection='3d')
-
-        ax.scatter(original_x, original_y, original_z, c='blue', marker='o', label='Original Points')
-        ax.scatter(transformed_x, transformed_y, transformed_z, c='red', marker='^', label='Transformed Points')
-
-        # Add semicircles for Yin and Yang
-        for semicircle in semicircles:
-            self._plot_semicircle(ax, semicircle, rot_matrix)
-
-        ax.set_xlabel('X')
-        ax.set_ylabel('Y')
-        ax.set_zlabel('Z')
-        ax.legend()
-        ax.set_title('3D Rotation of Points with Yin-Yang Semicircles')
-        ax.set_aspect('equal', adjustable='box')
-
-        plt.show()
-
-    def _plot_semicircle(self, ax, points_triplet, rot_matrix):
-        p_start, p_mid, p_end = points_triplet
-
-        # Generate points for the semicircle
-        t = np.linspace(0, 1, 100)
-        x_semi = p_start
-        y_semi = (1 - t) ** 2 * p_start.y + 2 * (1 - t) * t * p_mid.y + t ** 2 * p_end.y
-        z_semi = (1 - t) ** 2 * p_start.z + 2 * (1 - t) * t * p_mid.z + t ** 2 * p_end.z
-
-        # Transform semicircle points
-        transformed_semi = [
-            np.dot(rot_matrix, np.array([x, y, z, 1])).A1[:3]
-            for x, y, z in zip(x_semi, y_semi, z_semi)
-        ]
-
-        # Extract transformed x, y, z for plotting
-        transformed_x_semi, transformed_y_semi, transformed_z_semi = zip(*transformed_semi)
-
-        ax.plot(transformed_x_semi, transformed_y_semi, transformed_z_semi, label='Semicircle')
-
     def plot_semicircle(self, ax, p1, p2, p3):
         # Convert Points to numpy arrays
         P1 = np.array([p1.x, p1.y, p1.z])
