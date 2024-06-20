@@ -1,24 +1,20 @@
 from fundamentals import *
-from ying_yang import YingYang
-import numpy as np
 
 
 if __name__ == "__main__":
-    delta_y = 0.2 - (-382.5)
-    delta_z = -37.85 - (-14.46)
+    chained_joints = Joint(
+        joint_length=0, joint_height=51.49, translation_axis="z", joint_type="translation")
+    chained_joints.add_joint(Joint(
+        joint_length=420, next_orientation_axis="z", rotation_range=[-360, 360]))
+    chained_joints.add_joint(Joint(
+        joint_length=250, next_orientation_axis="z", rotation_range=[-360, 360]))
+    chained_joints.add_joint(Joint(
+        joint_height=-12, next_orientation_axis="z", rotation_range=[-360, 360]))
 
-    alpha = math.atan(delta_z/delta_y)
-    print(alpha / np.pi * 180)
+    # chained_joints.change_joint_translation(510.49, 0)
+    chained_joints.change_joint_angle(11.34, 1)
+    chained_joints.change_joint_angle(55.80, 2)
+    chained_joints.change_joint_angle(-190.31, 3)
 
-    rot_matrix = Rotations.calculate_rotation_matrix_x(alpha)
-
-    ying_yang = YingYang(50, Point(500, -50, -34.6))
-
-    list(map(lambda point: point.transform_coords(rot_matrix), ying_yang.points.values()))
-    for point in list(ying_yang.points.values()):
-        print(point)
-
-    ying_yang.print_movement_commands()
-
-    # PointPlotter(list(ying_yang.points.values())).plot_transformed_points(rot_matrix, ying_yang.semicircles)
-    PointPlotter(list(ying_yang.points.values())).plot_yingyang(ying_yang)
+    angles = [0, 11.34, 55.80, -190.31]
+    chained_joints.plot_forwards_kinematic(angles)
