@@ -1,6 +1,7 @@
 import numpy as np
 import math
 import matplotlib.pyplot as plt
+from mpl_toolkits.mplot3d import Axes3D
 
 
 class Point:
@@ -34,7 +35,7 @@ class Point:
         return f"{self.point_name}, {self.vector[:3]}"
 
 
-class PointPlotter:
+class Plotter:
     def __init__(self, points: list):
         self.points = points
 
@@ -76,12 +77,47 @@ class PointPlotter:
         semicircle_points = np.array(semicircle_points)
         ax.plot(semicircle_points[:, 0], semicircle_points[:, 1], semicircle_points[:, 2])
 
+    @staticmethod
+    def plot_forwards_kinematic(joint_chain, angles: list = None):
+        _, transformations = joint_chain.get_tcp_position(angles)
+
+        translations = [matrix[:3, 3] for matrix in transformations]
+
+        fig = plt.figure()
+        ax = fig.add_subplot(111, projection='3d')
+
+        x_coords = [t[0] for t in translations]
+        y_coords = [t[1] for t in translations]
+        z_coords = [t[2] for t in translations]
+
+        ax.scatter(x_coords, y_coords, z_coords, c='r', marker='o', label='Joints')
+
+        ax.plot(x_coords, y_coords, z_coords, label='Robot Links')
+
+        ax.set_xlabel('X axis')
+        ax.set_ylabel('Y axis')
+        ax.set_zlabel('Z axis')
+        all_coords = np.array([x_coords, y_coords, z_coords])
+        axis_limits = [np.min(all_coords), np.max(all_coords)]
+
+        ax.set_xlim(-axis_limits[1], axis_limits[1])
+        ax.set_ylim(-axis_limits[1], axis_limits[1])
+        # ax.set_zlim(axis_limits)
+
+        for i, (x, y, z) in enumerate(zip(x_coords, y_coords, z_coords)):
+            if i == 0:
+                continue
+            ax.text(int(x), int(y), int(z), f'J {i}', color='blue')
+
+        ax.legend()
+        plt.show()
+
 
 class Joint:
     JOINT_ID = 0
 
     def __init__(self,
-                 joint_length: float  = 0,
+                 joint_length: float = 0,
                  joint_height: float = 0,
                  joint_width: float = 0,
                  current_angle: float = 0,
@@ -123,7 +159,7 @@ class Joint:
             self.rotation_axis = "z"
 
     def get_orientation_matrix(self, base: bool = False, angle: float = 0):
-        angle = angle / math.pi * 180
+        angle = math.radians(angle)
         if not self.previous_joint:
             return Transformations.get_base_coords()
         if base or self.next_joint_orientation_axis.lower() == "z":
@@ -149,6 +185,7 @@ class Joint:
                 joint = joint.next_joint
             else:
                 joint = joint.previous_joint
+        print(joint.joint_id)
         return joint
 
     def change_joint_angle(self, angle: float, joint_nr: int):
@@ -161,10 +198,8 @@ class Joint:
             return
 
         if joint.rotation_range_upper_bounds >= angle >= joint.rotation_range_lower_bounds:
-            # If the angle exceeds +-360 degrees, it will be limited to +-360:
             angle = ((angle + 360) % 720) - 360
-            print(f"Setting new Angle: {angle} for joint {self.joint_id}")
-            # joint.next_joint_orientation = joint.get_orientation_matrix(base=True, angle=angle)
+            print(f"Setting new Angle: {angle} for joint {joint.joint_id}")
             joint.current_angle = angle
             print(f"New rotation:\n{joint.get_orientation_matrix(angle=angle)}")
         else:
@@ -185,12 +220,13 @@ class Joint:
         elif self.translation_axis == "z":
             joint.joint_z_distance = translation_value
 
-    def get_tcp_position(self, joints: list):
-        if len(joints) != Joint.JOINT_ID:
+    def get_tcp_position(self, joints: list = None):
+        if joints and len(joints) != Joint.JOINT_ID:
             print(f"Provided parameter is not equal to number of joints. "
                   f"Number of needed parameters is {Joint.JOINT_ID}")
             return
         base_joint = self
+
         while base_joint.previous_joint is not None:
             base_joint = base_joint.previous_joint
 
@@ -198,64 +234,32 @@ class Joint:
         transformations = [position]
 
         current_joint = base_joint
-        for joint_index in range(len(joints)):
-            if current_joint is None:
-                raise ValueError("Number of joints exceeds the provided joint parameters.")
-            current_joint.current_angle = joints[joint_index]
+        for joint_index in range(0, Joint.JOINT_ID):
 
-            # rotation_1 = current_joint.get_orientation_matrix(angle=current_joint.current_angle)
+            if joints:
+                current_joint.current_angle = joints[Joint.JOINT_ID - 1]
+
             translation = Transformations.get_translation_matrix(current_joint.joint_z_distance,
                                                                  current_joint.joint_x_distance)
 
             if current_joint.joint_type == "translation":
-                rotation = current_joint.get_orientation_matrix(base=True, angle=0)
+                rotation = current_joint.get_orientation_matrix(base=True)
             else:
-                rotation = current_joint.get_orientation_matrix(base=False, angle=joints[joint_index])
+                rotation = current_joint.get_orientation_matrix(base=False, angle=current_joint.current_angle)
             transformation = np.matmul(rotation, translation)
 
-            transformations.append(transformation)
+            position = np.matmul(position, transformation)
+            transformations.append(position)
+
             current_joint = current_joint.next_joint
 
-        position = np.eye(4)
-        for index, transformation in enumerate(transformations):
-            position = np.matmul(position, transformation)
-            transformations[index] = position
-
-        print("TCP:")
+        print("TCP (Tool Center Point):")
         print(position)
 
         return position, transformations
 
-    def plot_forwards_kinematic(self, angles: list):
-        _, transformations = self.get_tcp_position(angles)
 
-        translations = [matrix[:3, 3] for matrix in transformations]
-
-        fig = plt.figure()
-        ax = fig.add_subplot(111, projection='3d')
-
-        x_coords = [t[0] for t in translations]
-        y_coords = [t[1] for t in translations]
-        z_coords = [t[2] for t in translations]
-
-        ax.scatter(x_coords, y_coords, z_coords, c='r', marker='o', label='Joints')
-
-        ax.plot(x_coords, y_coords, z_coords, label='Robot Links')
-
-        ax.set_xlabel('X axis')
-        ax.set_ylabel('Y axis')
-        ax.set_zlabel('Z axis')
-        all_coords = np.array([x_coords, y_coords, z_coords])
-        axis_limits = [np.min(all_coords), np.max(all_coords)]
-
-        ax.set_xlim(axis_limits)
-        ax.set_ylim(axis_limits)
-        # ax.set_zlim(axis_limits)
-
-        ax.legend()
-        plt.show()
-
-    # noinspection PyTypeChecker
+# noinspection PyTypeChecker
 class Transformations:
 
     @staticmethod
@@ -305,10 +309,10 @@ class Transformations:
         return rot_matrix_z
 
     @staticmethod
-    def get_translation_matrix(heigth, length):
+    def get_translation_matrix(height, length):
         return np.matrix([
             [1, 0, 0, length],
             [0, 1, 0, 0],
-            [0, 0, 1, heigth],
+            [0, 0, 1, height],
             [0, 0, 0, 1]
         ])

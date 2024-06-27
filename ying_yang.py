@@ -69,9 +69,9 @@ class YingYang:
         ax = fig.add_subplot(111, projection='3d')
 
         for triplet in self.get_semicircles():
-            PointPlotter.plot_semicircle(ax, triplet[0], triplet[1], triplet[2], "regular")
+            Plotter.plot_semicircle(ax, triplet[0], triplet[1], triplet[2], "regular")
 
-            PointPlotter.plot_semicircle(ax, triplet[0], triplet[1], triplet[2], "transformed")
+            Plotter.plot_semicircle(ax, triplet[0], triplet[1], triplet[2], "transformed")
 
         for point in self.points.values():
             ax.scatter(point.x, point.y, point.z, color='r')
