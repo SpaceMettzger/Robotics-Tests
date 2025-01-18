@@ -2,6 +2,7 @@ import numpy as np
 import math
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
+from params import *
 
 
 class Point:
@@ -107,10 +108,36 @@ class Plotter:
         for i, (x, y, z) in enumerate(zip(x_coords, y_coords, z_coords)):
             if i == 0:
                 continue
-            ax.text(int(x), int(y), int(z), f'J {i}', color='blue')
+            ax.text(int(x), int(y), int(z), f'J {i-1}', color='blue')
 
         ax.legend()
         plt.show()
+
+
+class Robot:
+    def __init__(self):
+        self.params = None
+        self.joints = None
+
+    def set_up_joint_chain(self, params):
+        if params.num_joints is None:
+            print("No Parameters loaded. Aborting")
+            return
+        self.params = params
+        for i in range(0, self.params.num_joints):
+            if i == 0:
+                self.joints = Joint(joint_length=self.params.dh_params["a"][i],
+                                    joint_height=self.params.dh_params["d"][i],
+                                    theta=self.params.dh_params["theta"][i],
+                                    alpha=self.params.dh_params["alpha"][i])
+            else:
+                self.joints.add_joint(Joint(joint_length=self.params.dh_params["a"][i],
+                                            joint_height=self.params.dh_params["d"][i],
+                                            theta=self.params.dh_params["theta"][i],
+                                            alpha=self.params.dh_params["alpha"][i]))
+
+    def __repr__(self):
+        return f"Robot: {self.params.params['Manufacturer']}, {self.params.params['model']}"
 
 
 class Joint:
@@ -119,25 +146,18 @@ class Joint:
     def __init__(self,
                  joint_length: float = 0,
                  joint_height: float = 0,
-                 joint_width: float = 0,
-                 current_angle: float = 0,
-                 next_orientation_axis: str = "z",
-                 translation_axis: str = "x",
+                 theta: float = 0,
+                 alpha: float = 0,
                  rotation_range: list = (-360, 360),
                  joint_type: str = "rotation"):
         self.previous_joint = None
         self.next_joint = None
         self.joint_x_distance = joint_length
         self.joint_z_distance = joint_height
-        self.joint_y_distance = joint_width
         self.joint_type = joint_type
         self._check_joint_type(joint_type)
-        self.translation_axis = translation_axis
-        self._check_translation_axis(translation_axis)
-        self.next_joint_orientation_axis = next_orientation_axis
-        self._check_rotation_axis(next_orientation_axis)
-        self.current_angle = current_angle
-        self.next_joint_orientation = self.get_orientation_matrix()
+        self.alpha = alpha
+        self.theta = theta
         self.rotation_range_lower_bounds = rotation_range[0]
         self.rotation_range_upper_bounds = rotation_range[1]
         self.joint_id = Joint.JOINT_ID
@@ -148,28 +168,14 @@ class Joint:
             print(f"Invalid joint type: {joint_type}. Defaulting to rotational joint")
             self.joint_type = "rotation"
 
-    def _check_translation_axis(self, translation_axis):
-        if translation_axis not in ["x", "y", "z"]:
-            print(f"Invalid translation axis: {translation_axis}. Defaulting to 'z' as translation axis")
-            self.translation_axis = "z"
-
-    def _check_rotation_axis(self, rotation_axis):
-        if rotation_axis not in ["x", "y", "z"]:
-            print(f"Invalid rotation axis: {rotation_axis}. Defaulting to 'z' as rotation axis")
-            self.rotation_axis = "z"
-
     def get_orientation_matrix(self, base: bool = False, angle: float = 0):
         angle = math.radians(angle)
         if not self.previous_joint:
             return Transformations.get_base_coords()
-        if base or self.next_joint_orientation_axis.lower() == "z":
+        if base:
             return Transformations.calculate_rotation_matrix_z(angle)
-        elif self.next_joint_orientation_axis.lower() == "x":
-            return Transformations.calculate_rotation_matrix_x(angle)
-        elif self.next_joint_orientation_axis.lower() == "y":
-            return Transformations.calculate_rotation_matrix_y(angle)
         else:
-            print("Orientation axis variable is invalid")
+            return Transformations.calculate_rotation_matrix_z(angle)
 
     def add_joint(self, next_joint):
         current_joint = self
@@ -200,7 +206,7 @@ class Joint:
         if joint.rotation_range_upper_bounds >= angle >= joint.rotation_range_lower_bounds:
             angle = ((angle + 360) % 720) - 360
             print(f"Setting new Angle: {angle} for joint {joint.joint_id}")
-            joint.current_angle = angle
+            joint.theta = angle
             print(f"New rotation:\n{joint.get_orientation_matrix(angle=angle)}")
         else:
             print("Rotation exceeding joint limits. Rotation aborted")
@@ -213,44 +219,44 @@ class Joint:
         if joint.joint_type == "rotation":
             print("Can't change translation of rotation joint")
             return
-        if self.translation_axis == "x":
-            joint.joint_x_distance = translation_value
-        elif self.translation_axis == "y":
-            joint.joint_y_distance = translation_value
-        elif self.translation_axis == "z":
-            joint.joint_z_distance = translation_value
+        joint.joint_height = translation_value
+        print(f"Setting new Angle: {translation_value} for joint {joint.joint_id}")
 
-    def get_tcp_position(self, joints: list = None):
-        if joints and len(joints) != Joint.JOINT_ID:
-            print(f"Provided parameter is not equal to number of joints. "
-                  f"Number of needed parameters is {Joint.JOINT_ID}")
+    def get_tcp_position(self, angles: list = None):
+        if angles and len(angles) != Joint.JOINT_ID:
+            print(
+                f"Provided parameter is not equal to number of joints. Number of needed parameters is {Joint.JOINT_ID}")
             return
+
+        # Find the base joint
         base_joint = self
 
         while base_joint.previous_joint is not None:
             base_joint = base_joint.previous_joint
 
+        # Initialize the position matrix
         position = np.matrix(np.eye(4))
         transformations = [position]
 
+        # Traverse each joint and calculate the transformation matrices
         current_joint = base_joint
-        for joint_index in range(0, Joint.JOINT_ID):
+        for joint_index in range(Joint.JOINT_ID):
 
-            if joints:
-                current_joint.current_angle = joints[Joint.JOINT_ID - 1]
+            theta = angles[joint_index] if angles else current_joint.theta
 
-            translation = Transformations.get_translation_matrix(current_joint.joint_z_distance,
-                                                                 current_joint.joint_x_distance)
+            # Construct transformation matrix based on DH parameters
+            translation = Transformations.get_translation_matrix(current_joint.joint_z_distance, current_joint.joint_x_distance)
+            rotation_z = Transformations.calculate_rotation_matrix_z(theta)
+            rotation_x = Transformations.calculate_rotation_matrix_x(current_joint.alpha)
 
-            if current_joint.joint_type == "translation":
-                rotation = current_joint.get_orientation_matrix(base=True)
-            else:
-                rotation = current_joint.get_orientation_matrix(base=False, angle=current_joint.current_angle)
-            transformation = np.matmul(rotation, translation)
+            # Combine the transformations
+            transformation = rotation_z @ translation @ rotation_x
 
-            position = np.matmul(position, transformation)
+            # Update the overall position matrix
+            position = position @ transformation
             transformations.append(position)
 
+            # Move to the next joint
             current_joint = current_joint.next_joint
 
         print("TCP (Tool Center Point):")
@@ -274,6 +280,7 @@ class Transformations:
 
     @staticmethod
     def calculate_rotation_matrix_x(alpha):
+        alpha = math.radians(alpha)
         cos_a = math.cos(alpha)
         sin_a = math.sin(alpha)
         rot_matrix_x = np.matrix([
@@ -286,6 +293,7 @@ class Transformations:
 
     @staticmethod
     def calculate_rotation_matrix_y(alpha):
+        alpha = math.radians(alpha)
         cos_a = math.cos(alpha)
         sin_a = math.sin(alpha)
         rot_matrix_y = np.matrix([
@@ -298,6 +306,7 @@ class Transformations:
 
     @staticmethod
     def calculate_rotation_matrix_z(alpha):
+        alpha = math.radians(alpha)
         cos_a = math.cos(alpha)
         sin_a = math.sin(alpha)
         rot_matrix_z = np.matrix([
